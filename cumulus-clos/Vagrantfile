@@ -1,0 +1,229 @@
+# vm name 
+$base_name = "cumulus-"
+
+# ------------------------------------------------------------
+# Description
+# ------------------------------------------------------------
+$description = <<"EOS"
+# Cumulus Clos test
+
+user: vagrant
+password: vagrant
+EOS
+
+# ------------------------------------------------------------
+# FRRouting Config
+# ------------------------------------------------------------
+$spine1_conf = <<-'CONFIG'
+enable
+configure terminal
+interface swp1
+  ip address 10.0.1.1/24
+interface swp2
+  ip address 10.0.2.1/24
+CONFIG
+
+$spine2_conf = <<-'CONFIG'
+enable
+configure terminal
+interface swp1
+  ip address 10.0.3.1/24
+interface swp2
+  ip address 10.0.4.1/24
+CONFIG
+
+$leaf1_conf = <<-'CONFIG'
+enable
+configure terminal
+interface swp1
+  ip address 10.0.1.2/24
+interface swp2
+  ip address 10.0.3.2/24
+CONFIG
+
+$leaf2_conf = <<-'CONFIG'
+enable
+configure terminal
+interface swp1
+  ip address 10.0.2.2/24
+interface swp2
+  ip address 10.0.4.2/24
+CONFIG
+
+
+def to_vtysh_cmd(s)
+    "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
+end
+
+# ------------------------------------------------------------
+# vagrant configure version 2
+# ------------------------------------------------------------
+VAGRANTFILE_API_VERSION = "2"
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+    config.vbguest.auto_update = false
+
+    sw_name = "spine1"
+    config.vm.define sw_name do |switch|
+        switch.vm.hostname = sw_name
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: to_vtysh_cmd($spine1_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + sw_name
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 512
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "off",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "piix3",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+
+    sw_name = "spine2"
+    config.vm.define sw_name do |switch|
+        switch.vm.hostname = sw_name
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: to_vtysh_cmd($spine2_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + sw_name
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 512
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "off",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "piix3",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+
+    sw_name = "leaf1"
+    config.vm.define sw_name do |switch|
+        switch.vm.hostname = sw_name
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: to_vtysh_cmd($leaf1_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + sw_name
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 512
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "off",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "piix3",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+
+    sw_name = "leaf2"
+    config.vm.define sw_name do |switch|
+        switch.vm.hostname = sw_name
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: to_vtysh_cmd($leaf2_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + sw_name
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 512
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "off",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "piix3",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+end
