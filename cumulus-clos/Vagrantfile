@@ -1,4 +1,4 @@
-# vm name 
+# vm name in virtual box
 $base_name = "cumulus-"
 
 # ------------------------------------------------------------
@@ -14,46 +14,157 @@ EOS
 # ------------------------------------------------------------
 # FRRouting Config
 # ------------------------------------------------------------
+$daemons = <<-'SCRIPT'
+cat << 'EOF' | tee /etc/frr/daemons
+zebra=yes
+bgpd=yes
+ospfd=no
+ospf6d=no
+ripd=no
+ripngd=no
+isisd=no
+fabricd=no
+pimd=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+fabricd=no
+vrrpd=no
+
+vtysh_enable=yes
+zebra_options="  -M cumulus_mlag -M snmp -A 127.0.0.1 -s 90000000"
+bgpd_options="   -M snmp -A 127.0.0.1"
+ospfd_options="  -M snmp -A 127.0.0.1"
+ospf6d_options=" -M snmp -A ::1"
+ripd_options="   -A 127.0.0.1"
+ripngd_options=" -A ::1"
+isisd_options="  -A 127.0.0.1"
+pimd_options="   -A 127.0.0.1"
+ldpd_options="   -A 127.0.0.1"
+nhrpd_options="  -A 127.0.0.1"
+eigrpd_options=" -A 127.0.0.1"
+babeld_options=" -A 127.0.0.1"
+sharpd_options=" -A 127.0.0.1"
+pbrd_options="   -A 127.0.0.1"
+staticd_options="-A 127.0.0.1"
+fabricd_options="-A 127.0.0.1"
+vrrpd_options="  -A 127.0.0.1"
+EOF
+
+systemctl restart frr
+SCRIPT
+
 $spine1_conf = <<-'CONFIG'
 enable
 configure terminal
-interface swp1
-  ip address 10.0.1.1/24
-interface swp2
-  ip address 10.0.2.1/24
+interface lo
+  ip address 10.0.0.1/32
+
+router bgp 65200
+  bgp router-id 10.0.0.1
+  no bgp default ipv4-unicast
+  bgp bestpath as-path multipath-relax
+  neighbor FABRIC peer-group
+  neighbor FABRIC remote-as external
+  neighbor FABRIC bfd
+  neighbor FABRIC capability extended-nexthop
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
+  address-family ipv4 unicast
+    network 10.0.0.1/32
+  exit-address-family
 CONFIG
 
 $spine2_conf = <<-'CONFIG'
 enable
 configure terminal
-interface swp1
-  ip address 10.0.3.1/24
-interface swp2
-  ip address 10.0.4.1/24
+interface lo
+  ip address 10.0.0.2/32
+
+router bgp 65200
+  bgp router-id 10.0.0.2
+  no bgp default ipv4-unicast
+  bgp bestpath as-path multipath-relax
+  neighbor FABRIC peer-group
+  neighbor FABRIC remote-as external
+  neighbor FABRIC bfd
+  neighbor FABRIC capability extended-nexthop
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
+  address-family ipv4 unicast
+    network 10.0.0.2/32
+  exit-address-family
 CONFIG
 
 $leaf1_conf = <<-'CONFIG'
 enable
 configure terminal
-interface swp1
-  ip address 10.0.1.2/24
-interface swp2
-  ip address 10.0.3.2/24
+interface lo
+  ip address 10.0.1.1/32
+interface swp3
+  ip address 192.168.1.1/24
+
+router bgp 651000
+  bgp router-id 10.0.1.1
+  no bgp default ipv4-unicast
+  bgp bestpath as-path multipath-relax
+  neighbor FABRIC peer-group
+  neighbor FABRIC remote-as external
+  neighbor FABRIC bfd
+  neighbor FABRIC capability extended-nexthop
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
+  address-family ipv4 unicast
+    network 10.0.1.1/32
+    network 192.168.1.1/24
+  exit-address-family
 CONFIG
 
 $leaf2_conf = <<-'CONFIG'
 enable
 configure terminal
-interface swp1
-  ip address 10.0.2.2/24
-interface swp2
-  ip address 10.0.4.2/24
+interface lo
+  ip address 10.0.1.2/32
+interface swp3
+  ip address 192.168.2.1/24
+
+router bgp 651001
+    bgp router-id 10.0.1.2
+    no bgp default ipv4-unicast
+    bgp bestpath as-path multipath-relax
+    neighbor FABRIC peer-group
+    neighbor FABRIC remote-as external
+    neighbor FABRIC bfd
+    neighbor FABRIC capability extended-nexthop
+    neighbor swp1 interface peer-group FABRIC
+    neighbor swp2 interface peer-group FABRIC
+    address-family ipv4 unicast
+      network 10.0.1.2/32
+      network 192.168.2.1/24
+    exit-address-family
 CONFIG
 
 
 def to_vtysh_cmd(s)
     "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
 end
+
+# ------------------------------------------------------------
+# Host Config
+# ------------------------------------------------------------
+$host1_conf = <<-'SCRIPT'
+ip address add 192.168.1.2 dev eth1
+ip route add default via 192.168.1.1 dev eth1
+SCRIPT
+
+$host2_conf = <<-'SCRIPT'
+ip address add 192.168.2.2 dev eth1
+ip route add default via 192.168.2.1 dev eth1
+SCRIPT
+
 
 # ------------------------------------------------------------
 # vagrant configure version 2
@@ -63,9 +174,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     config.vbguest.auto_update = false
 
-    sw_name = "spine1"
-    config.vm.define sw_name do |switch|
-        switch.vm.hostname = sw_name
+    # ssh config
+    config.ssh.username = 'vagrant'
+    config.ssh.password = 'vagrant'
+    config.ssh.insert_key = false
+
+    # 
+    # Cumulus Linux
+    # ------------------------------------------------------------
+    spine1 = "spine1"
+    config.vm.define spine1 do |switch|
+        switch.vm.hostname = spine1
         switch.vm.box = "CumulusCommunity/cumulus-vx"
 
         # private network config
@@ -73,20 +192,21 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
 
         # set network config
+        switch.vm.provision "shell", inline: $daemons
         switch.vm.provision "shell", inline: to_vtysh_cmd($spine1_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + sw_name
+            vb.name = $base_name + spine1
             vb.gui = true
             vb.cpus = 1
-            vb.memory = 512
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -94,7 +214,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--description", $description
             ]
 
@@ -104,9 +224,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    sw_name = "spine2"
-    config.vm.define sw_name do |switch|
-        switch.vm.hostname = sw_name
+    spine2 = "spine2"
+    config.vm.define spine2 do |switch|
+        switch.vm.hostname = spine2
         switch.vm.box = "CumulusCommunity/cumulus-vx"
 
         # private network config
@@ -114,20 +234,21 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
 
         # set network config
+        switch.vm.provision "shell", inline: $daemons
         switch.vm.provision "shell", inline: to_vtysh_cmd($spine2_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + sw_name
+            vb.name = $base_name + spine2
             vb.gui = true
             vb.cpus = 1
-            vb.memory = 512
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -135,7 +256,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--description", $description
             ]
 
@@ -145,30 +266,32 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    sw_name = "leaf1"
-    config.vm.define sw_name do |switch|
-        switch.vm.hostname = sw_name
+    leaf1 = "leaf1"
+    config.vm.define leaf1 do |switch|
+        switch.vm.hostname = leaf1
         switch.vm.box = "CumulusCommunity/cumulus-vx"
 
         # private network config
         switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
         switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
 
         # set network config
+        switch.vm.provision "shell", inline: $daemons
         switch.vm.provision "shell", inline: to_vtysh_cmd($leaf1_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + sw_name
+            vb.name = $base_name + leaf1
             vb.gui = true
             vb.cpus = 1
-            vb.memory = 512
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -176,7 +299,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--description", $description
             ]
 
@@ -186,9 +309,9 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    sw_name = "leaf2"
-    config.vm.define sw_name do |switch|
-        switch.vm.hostname = sw_name
+    leaf2 = "leaf2"
+    config.vm.define leaf2 do |switch|
+        switch.vm.hostname = leaf2
         switch.vm.box = "CumulusCommunity/cumulus-vx"
 
         # private network config
@@ -196,20 +319,21 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
 
         # set network config
+        switch.vm.provision "shell", inline: $daemons
         switch.vm.provision "shell", inline: to_vtysh_cmd($leaf2_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + sw_name
+            vb.name = $base_name + leaf2
             vb.gui = true
             vb.cpus = 1
-            vb.memory = 512
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -217,11 +341,94 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--description", $description
             ]
 
             (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+
+    # 
+    # Ubntu
+    # ------------------------------------------------------------
+    host1 = "host1"
+    config.vm.define host1 do |host|
+        host.vm.hostname = host1
+        host.vm.box = "ubuntu/jammy64"
+
+        # private network config
+        host.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
+
+        host.vm.provision "shell", inline: $host1_conf
+
+        # virtual box config
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + host1
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--uartmode1", "disconnected",
+                "--description", $description
+            ]
+
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+            end
+        end
+    end
+
+    host2 = "host2"
+    config.vm.define host2 do |host|
+        host.vm.hostname = host2
+        host.vm.box = "ubuntu/jammy64"
+
+        # private network config
+        host.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
+
+        host.vm.provision "shell", inline: $host2_conf
+
+        # virtual box config
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = $base_name + host2
+            vb.gui = true
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--uartmode1", "disconnected",
+                "--description", $description
+            ]
+
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
                 vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
             end
         end
