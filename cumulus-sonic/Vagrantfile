@@ -5,11 +5,122 @@ $gui = true
 # Description
 # ------------------------------------------------------------
 $description = <<"EOS"
-# Cumulus Linux test
+# Cumulus and SONiC
 
+## Cumulus
 user: vagrant
 password: vagrant
+
+## SONiC
+user: admin
+password: YourPaSsWoRd
 EOS
+
+# ------------------------------------------------------------
+# FRRouting Config
+# ------------------------------------------------------------
+$daemons = <<-'SCRIPT'
+cat << 'EOF' | tee /etc/frr/daemons
+zebra=yes
+bgpd=yes
+ospfd=no
+ospf6d=no
+ripd=no
+ripngd=no
+isisd=no
+fabricd=no
+pimd=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+fabricd=no
+vrrpd=no
+
+vtysh_enable=yes
+zebra_options="  -M cumulus_mlag -M snmp -A 127.0.0.1 -s 90000000"
+bgpd_options="   -M snmp -A 127.0.0.1"
+ospfd_options="  -M snmp -A 127.0.0.1"
+ospf6d_options=" -M snmp -A ::1"
+ripd_options="   -A 127.0.0.1"
+ripngd_options=" -A ::1"
+isisd_options="  -A 127.0.0.1"
+pimd_options="   -A 127.0.0.1"
+ldpd_options="   -A 127.0.0.1"
+nhrpd_options="  -A 127.0.0.1"
+eigrpd_options=" -A 127.0.0.1"
+babeld_options=" -A 127.0.0.1"
+sharpd_options=" -A 127.0.0.1"
+pbrd_options="   -A 127.0.0.1"
+staticd_options="-A 127.0.0.1"
+fabricd_options="-A 127.0.0.1"
+vrrpd_options="  -A 127.0.0.1"
+EOF
+
+systemctl restart frr
+SCRIPT
+
+$cumulus1_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.1/32
+interface swp1
+  ip address 10.0.1.1/24
+#   ipv6 nd ra-interval 10
+#   no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ip address 10.0.2.1/24
+#   ipv6 nd ra-interval 10
+#   no ipv6 nd suppress-ra
+  no shut
+
+# router bgp 65200
+#   bgp router-id 10.0.0.1
+#   no bgp ebgp-requires-policy
+#   bgp bestpath as-path multipath-relax
+#   neighbor FABRIC peer-group
+#   neighbor FABRIC remote-as external
+#   neighbor FABRIC capability extended-nexthop
+#   neighbor swp1 interface peer-group FABRIC
+#   neighbor swp2 interface peer-group FABRIC
+#   address-family ipv4 unicast
+#     network 10.0.0.1/32
+#   exit-address-family
+CONFIG
+
+$cumulus2_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.2/32
+interface swp1
+  ip address 10.0.3.1/24
+#   ipv6 nd ra-interval 10
+#   no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ip address 10.0.4.1/24
+#   ipv6 nd ra-interval 10
+#   no ipv6 nd suppress-ra
+  no shut
+
+# router bgp 65200
+#   bgp router-id 10.0.0.2
+#   no bgp ebgp-requires-policy
+#   bgp bestpath as-path multipath-relax
+#   neighbor FABRIC peer-group
+#   neighbor FABRIC remote-as external
+#   neighbor FABRIC capability extended-nexthop
+#   neighbor swp1 interface peer-group FABRIC
+#   neighbor swp2 interface peer-group FABRIC
+#   address-family ipv4 unicast
+#     network 10.0.0.2/32
+#   exit-address-family
+CONFIG
 
 
 # ------------------------------------------------------------
@@ -20,18 +131,110 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     config.vbguest.auto_update = false
 
-    # ssh config
-    # config.ssh.username = 'vagrant'
-    # config.ssh.password = 'vagrant'
-    # config.ssh.insert_key = false
-
     # 
     # Cumulus Linux
+    # ------------------------------------------------------------
+    cumulus1 = "cumulus1"
+    config.vm.define cumulus1 do |switch|
+        switch.vm.hostname = cumulus1
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # ssh config
+        switch.ssh.username = 'vagrant'
+        switch.ssh.password = 'vagrant'
+        switch.ssh.insert_key = false
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus1_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus1
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    cumulus2 = "cumulus2"
+    config.vm.define cumulus2 do |switch|
+        switch.vm.hostname = cumulus2
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # ssh config
+        switch.ssh.username = 'vagrant'
+        switch.ssh.password = 'vagrant'
+        switch.ssh.insert_key = false
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus2_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus2
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    # 
+    # SONiC
     # ------------------------------------------------------------
     sonic1 = "sonic1"
     config.vm.define sonic1 do |switch|
         # switch.vm.hostname = sonic1  ## error!
-        switch.vm.box = "./sonic-vs.box"
+        switch.vm.box = "sonic-vs"
 
         switch.ssh.username = 'admin'
         switch.ssh.password = 'YourPaSsWoRd'
@@ -42,8 +245,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.vm.synced_folder '.', '/vagrant', disabled: true
 
         # private network config
-        # switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
-        # switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
 
         # # set network config
         # switch.vm.provision "shell", inline: $daemons
@@ -52,6 +255,56 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
             vb.name = sonic1
+            vb.gui = $gui
+            vb.cpus = 2
+            vb.memory = 2048
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    sonic2 = "sonic2"
+    config.vm.define sonic2 do |switch|
+        # switch.vm.hostname = sonic2  ## error!
+        switch.vm.box = "sonic-vs"
+
+        switch.ssh.username = 'admin'
+        switch.ssh.password = 'YourPaSsWoRd'
+        switch.ssh.insert_key = false
+
+        switch.vm.provision "shell", inline: "hostname " + sonic2
+
+        switch.vm.synced_folder '.', '/vagrant', disabled: true
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+
+        # # set network config
+        # switch.vm.provision "shell", inline: $daemons
+        # switch.vm.provision "shell", inline: to_vtysh_cmd($sonic2_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = sonic2
             vb.gui = $gui
             vb.cpus = 2
             vb.memory = 2048

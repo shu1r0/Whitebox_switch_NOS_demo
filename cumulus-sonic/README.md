@@ -1,4 +1,6 @@
-# 
+# Cumulus and SONiC
+
+![topo](./images/test_topo.drawio.png)
 
 
 ## Convert .img to .vdi
@@ -10,7 +12,7 @@
 ```
 
 
-## Virtalbox to Vagrant box
+## Create Vagrant box
 
 install Virtual box guest additions
 ```
@@ -28,7 +30,12 @@ create vagrant box
 
 ```
 vagrant package --base "<VirtualBoxName>" --output sonic-vs.box
-
-# vagrant box add sonic-vs.box --name sonic-vs
+vagrant box add sonic-vs.box --name sonic-vs
 ```
 
+
+
+## 参考
+- [SONiCを少しかじってみた](https://debslink.hatenadiary.jp/entry/20210131/1612091391)
+- [Vagrant, Creating a Base Box](https://www.vagrantup.com/docs/providers/virtualbox/boxes)
+- [VIRTUALBOX から VAGRANT の BOX を作成する](http://vistylee.com/virtualbox-vagrant-box/)
