@@ -1,11 +1,11 @@
-# vm name in virtual box
-$base_name = "cumulus-"
+# enable gui
+$gui = true
 
 # ------------------------------------------------------------
 # Description
 # ------------------------------------------------------------
 $description = <<"EOS"
-# Cumulus Clos test
+# Cumulus Linux test
 
 user: vagrant
 password: vagrant
@@ -62,14 +62,21 @@ enable
 configure terminal
 interface lo
   ip address 10.0.0.1/32
+interface swp1
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
 
 router bgp 65200
   bgp router-id 10.0.0.1
-  no bgp default ipv4-unicast
+  no bgp ebgp-requires-policy
   bgp bestpath as-path multipath-relax
   neighbor FABRIC peer-group
   neighbor FABRIC remote-as external
-  neighbor FABRIC bfd
   neighbor FABRIC capability extended-nexthop
   neighbor swp1 interface peer-group FABRIC
   neighbor swp2 interface peer-group FABRIC
@@ -83,14 +90,21 @@ enable
 configure terminal
 interface lo
   ip address 10.0.0.2/32
+interface swp1
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
 
 router bgp 65200
   bgp router-id 10.0.0.2
-  no bgp default ipv4-unicast
+  no bgp ebgp-requires-policy
   bgp bestpath as-path multipath-relax
   neighbor FABRIC peer-group
   neighbor FABRIC remote-as external
-  neighbor FABRIC bfd
   neighbor FABRIC capability extended-nexthop
   neighbor swp1 interface peer-group FABRIC
   neighbor swp2 interface peer-group FABRIC
@@ -104,16 +118,24 @@ enable
 configure terminal
 interface lo
   ip address 10.0.1.1/32
+interface swp1
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
 interface swp3
   ip address 192.168.1.1/24
+  no shut
 
-router bgp 651000
+router bgp 65100
   bgp router-id 10.0.1.1
-  no bgp default ipv4-unicast
+  no bgp ebgp-requires-policy
   bgp bestpath as-path multipath-relax
   neighbor FABRIC peer-group
   neighbor FABRIC remote-as external
-  neighbor FABRIC bfd
   neighbor FABRIC capability extended-nexthop
   neighbor swp1 interface peer-group FABRIC
   neighbor swp2 interface peer-group FABRIC
@@ -128,23 +150,31 @@ enable
 configure terminal
 interface lo
   ip address 10.0.1.2/32
+interface swp1
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
+interface swp2
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
 interface swp3
   ip address 192.168.2.1/24
+  no shut
 
-router bgp 651001
-    bgp router-id 10.0.1.2
-    no bgp default ipv4-unicast
-    bgp bestpath as-path multipath-relax
-    neighbor FABRIC peer-group
-    neighbor FABRIC remote-as external
-    neighbor FABRIC bfd
-    neighbor FABRIC capability extended-nexthop
-    neighbor swp1 interface peer-group FABRIC
-    neighbor swp2 interface peer-group FABRIC
-    address-family ipv4 unicast
-      network 10.0.1.2/32
-      network 192.168.2.1/24
-    exit-address-family
+router bgp 65101
+  bgp router-id 10.0.1.2
+  no bgp ebgp-requires-policy
+  bgp bestpath as-path multipath-relax
+  neighbor FABRIC peer-group
+  neighbor FABRIC remote-as external
+  neighbor FABRIC capability extended-nexthop
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
+  address-family ipv4 unicast
+    network 10.0.1.2/32
+    network 192.168.2.1/24
+  exit-address-family
 CONFIG
 
 
@@ -156,13 +186,15 @@ end
 # Host Config
 # ------------------------------------------------------------
 $host1_conf = <<-'SCRIPT'
-ip address add 192.168.1.2 dev eth1
-ip route add default via 192.168.1.1 dev eth1
+ip link set eth1 up
+ip address add 192.168.1.2/24 dev eth1
+ip route add 192.168.2.0/24 via 192.168.1.1 dev eth1
 SCRIPT
 
 $host2_conf = <<-'SCRIPT'
-ip address add 192.168.2.2 dev eth1
-ip route add default via 192.168.2.1 dev eth1
+ip link set eth1 up
+ip address add 192.168.2.2/24 dev eth1
+ip route add 192.168.1.0/24 via 192.168.2.1 dev eth1
 SCRIPT
 
 
@@ -197,8 +229,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + spine1
-            vb.gui = true
+            vb.name = spine1
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -219,7 +251,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
@@ -239,8 +271,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + spine2
-            vb.gui = true
+            vb.name = spine2
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -261,7 +293,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
@@ -282,8 +314,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + leaf1
-            vb.gui = true
+            vb.name = leaf1
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -304,7 +336,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
@@ -317,6 +349,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # private network config
         switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
         switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net6", auto_config: false
 
         # set network config
         switch.vm.provision "shell", inline: $daemons
@@ -324,8 +357,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + leaf2
-            vb.gui = true
+            vb.name = leaf2
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -346,7 +379,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
@@ -357,7 +390,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     host1 = "host1"
     config.vm.define host1 do |host|
         host.vm.hostname = host1
-        host.vm.box = "ubuntu/jammy64"
+        host.vm.box = 'bento/ubuntu-20.04'
 
         # private network config
         host.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
@@ -366,8 +399,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
         # virtual box config
         host.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + host1
-            vb.gui = true
+            vb.name = host1
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -389,7 +422,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
@@ -397,17 +430,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     host2 = "host2"
     config.vm.define host2 do |host|
         host.vm.hostname = host2
-        host.vm.box = "ubuntu/jammy64"
+        host.vm.box = 'bento/ubuntu-20.04'
 
         # private network config
-        host.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
+        host.vm.network "private_network", virtualbox__intnet: "net6", auto_config: false
 
         host.vm.provision "shell", inline: $host2_conf
 
         # virtual box config
         host.vm.provider "virtualbox" do |vb|
-            vb.name = $base_name + host2
-            vb.gui = true
+            vb.name = host2
+            vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
             vb.customize [
@@ -429,7 +462,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             ]
 
             (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
-                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-vms"]
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
