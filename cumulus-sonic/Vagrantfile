@@ -123,6 +123,11 @@ interface swp2
 CONFIG
 
 
+def to_vtysh_cmd(s)
+  "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
+end
+
+
 # ------------------------------------------------------------
 # vagrant configure version 2
 # ------------------------------------------------------------
@@ -240,6 +245,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.ssh.password = 'YourPaSsWoRd'
         switch.ssh.insert_key = false
 
+        switch.vm.boot_timeout = 18000
+
         switch.vm.provision "shell", inline: "hostname " + sonic1
 
         switch.vm.synced_folder '.', '/vagrant', disabled: true
@@ -263,7 +270,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "on",
+                "--ioapic", "off",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -271,7 +278,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "ich9",
+                "--chipset", "piix3",
+                "--uartmode1", "disconnected",
                 "--description", $description
             ]
 
@@ -289,6 +297,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         switch.ssh.username = 'admin'
         switch.ssh.password = 'YourPaSsWoRd'
         switch.ssh.insert_key = false
+
+        switch.vm.boot_timeout = 18000
 
         switch.vm.provision "shell", inline: "hostname " + sonic2
 
@@ -313,7 +323,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "on",
+                "--ioapic", "off",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -321,7 +331,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "ich9",
+                "--chipset", "piix3",
+                "--uartmode1", "disconnected",
                 "--description", $description
             ]
 
