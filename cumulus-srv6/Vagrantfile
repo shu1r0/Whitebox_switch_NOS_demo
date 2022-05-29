@@ -1,0 +1,437 @@
+# enable gui
+$gui = true
+
+# ------------------------------------------------------------
+# Description
+# ------------------------------------------------------------
+$description = <<"EOS"
+# Cumulus Linux test
+
+user: vagrant
+password: vagrant
+EOS
+
+# ------------------------------------------------------------
+# FRRouting Config
+# ------------------------------------------------------------
+$daemons = <<-'SCRIPT'
+cat << 'EOF' | tee /etc/frr/daemons
+zebra=yes
+bgpd=no
+ospfd=no
+ospf6d=yes
+ripd=no
+ripngd=no
+isisd=no
+fabricd=no
+pimd=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+fabricd=no
+vrrpd=no
+
+vtysh_enable=yes
+zebra_options="  -M cumulus_mlag -M snmp -A 127.0.0.1 -s 90000000"
+bgpd_options="   -M snmp -A 127.0.0.1"
+ospfd_options="  -M snmp -A 127.0.0.1"
+ospf6d_options=" -M snmp -A ::1"
+ripd_options="   -A 127.0.0.1"
+ripngd_options=" -A ::1"
+isisd_options="  -A 127.0.0.1"
+pimd_options="   -A 127.0.0.1"
+ldpd_options="   -A 127.0.0.1"
+nhrpd_options="  -A 127.0.0.1"
+eigrpd_options=" -A 127.0.0.1"
+babeld_options=" -A 127.0.0.1"
+sharpd_options=" -A 127.0.0.1"
+pbrd_options="   -A 127.0.0.1"
+staticd_options="-A 127.0.0.1"
+fabricd_options="-A 127.0.0.1"
+vrrpd_options="  -A 127.0.0.1"
+EOF
+
+systemctl restart frr
+SCRIPT
+
+$cumulus1_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.1/32
+interface swp1
+  ipv6 address fc00:1::1/64
+  no shut
+interface swp2
+  ipv6 address fc00:2::1/64
+  no shut
+interface swp3
+  ipv6 address fc00:3::1/64
+  no shut
+
+router ospf6
+interface swp1 area 0.0.0.0
+interface swp2 area 0.0.0.0
+interface swp3 area 0.0.0.0
+CONFIG
+
+$cumulus2_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.2/32
+interface swp1
+  ipv6 address fc00:2::2/64
+  no shut
+interface swp2
+  ipv6 address fc00:4::1/64
+  no shut
+interface swp3
+  ipv6 address fc00:5::1/64
+  no shut
+
+router ospf6
+interface swp1 area 0.0.0.0
+interface swp2 area 0.0.0.0
+interface swp3 area 0.0.0.0
+CONFIG
+
+$cumulus3_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.3/32
+interface swp1
+  ipv6 address fc00:3::2/64
+  no shut
+interface swp2
+  ipv6 address fc00:4::2/64
+  no shut
+interface swp3
+  ipv6 address fc00:6::1/64
+  no shut
+
+router ospf6
+interface swp1 area 0.0.0.0
+interface swp2 area 0.0.0.0
+interface swp3 area 0.0.0.0
+CONFIG
+
+$cumulus4_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.0.4/32
+interface swp1
+  ipv6 address fc00:5::2/64
+  no shut
+interface swp2
+  ipv6 address fc00:6::2/64
+  no shut
+interface swp3
+  ipv6 address fc00:7::1/64
+  no shut
+
+router ospf6
+interface swp1 area 0.0.0.0
+interface swp2 area 0.0.0.0
+interface swp3 area 0.0.0.0
+CONFIG
+
+
+def to_vtysh_cmd(s)
+    "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
+end
+
+
+# ------------------------------------------------------------
+# Host Config
+# ------------------------------------------------------------
+$host1_conf = <<-'SCRIPT'
+ip link set eth1 up
+ip -6 address add fc00:1::2/64 dev eth1
+ip -6 route add fc00::/16 via fc00:1::1 dev eth1
+SCRIPT
+
+
+$host2_conf = <<-'SCRIPT'
+ip link set eth1 up
+ip -6 address add fc00:7::2/64 dev eth1
+ip -6 route add fc00::/16 via fc00:7::1 dev eth1
+SCRIPT
+
+
+# ------------------------------------------------------------
+# vagrant configure version 2
+# ------------------------------------------------------------
+VAGRANTFILE_API_VERSION = "2"
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+    config.vbguest.auto_update = false
+
+    # ssh config
+    config.ssh.username = 'vagrant'
+    config.ssh.password = 'vagrant'
+    config.ssh.insert_key = false
+
+    # 
+    # Cumulus Linux
+    # ------------------------------------------------------------
+    cumulus1 = "srv6-cumulus1"
+    config.vm.define cumulus1 do |switch|
+        switch.vm.hostname = cumulus1
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus1_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus1
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    cumulus2 = "srv6-cumulus2"
+    config.vm.define cumulus2 do |switch|
+        switch.vm.hostname = cumulus2
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus2_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus2
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    cumulus3 = "srv6-cumulus3"
+    config.vm.define cumulus3 do |switch|
+        switch.vm.hostname = cumulus3
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net6", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus3_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus3
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    cumulus4 = "srv6-cumulus4"
+    config.vm.define cumulus4 do |switch|
+        switch.vm.hostname = cumulus4
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net5", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net6", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net7", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus4_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = cumulus4
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    # 
+    # Ubntu
+    # ------------------------------------------------------------
+    host1 = "srv6-host1"
+    config.vm.define host1 do |host|
+        host.vm.hostname = host1
+        host.vm.box = 'bento/ubuntu-20.04'
+
+        # private network config
+        host.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+
+        host.vm.provision "shell", inline: $host1_conf
+
+        # virtual box config
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = host1
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--uartmode1", "disconnected",
+                "--description", $description
+            ]
+
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+
+    host2 = "srv6-host2"
+    config.vm.define host2 do |host|
+        host.vm.hostname = host2
+        host.vm.box = 'bento/ubuntu-20.04'
+
+        # private network config
+        host.vm.network "private_network", virtualbox__intnet: "net7", auto_config: false
+
+        host.vm.provision "shell", inline: $host2_conf
+
+        # virtual box config
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = host2
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 1024
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "on",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "ich9",
+                "--uartmode1", "disconnected",
+                "--description", $description
+            ]
+
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+    end
+end
