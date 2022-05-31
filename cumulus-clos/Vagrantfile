@@ -214,7 +214,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # 
     # Cumulus Linux
     # ------------------------------------------------------------
-    spine1 = "spine1"
+    spine1 = "clos-spine1"
     config.vm.define spine1 do |switch|
         switch.vm.hostname = spine1
         switch.vm.box = "CumulusCommunity/cumulus-vx"
@@ -256,7 +256,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    spine2 = "spine2"
+    spine2 = "clos-spine2"
     config.vm.define spine2 do |switch|
         switch.vm.hostname = spine2
         switch.vm.box = "CumulusCommunity/cumulus-vx"
@@ -298,7 +298,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    leaf1 = "leaf1"
+    leaf1 = "clos-leaf1"
     config.vm.define leaf1 do |switch|
         switch.vm.hostname = leaf1
         switch.vm.box = "CumulusCommunity/cumulus-vx"
@@ -341,7 +341,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    leaf2 = "leaf2"
+    leaf2 = "clos-leaf2"
     config.vm.define leaf2 do |switch|
         switch.vm.hostname = leaf2
         switch.vm.box = "CumulusCommunity/cumulus-vx"
@@ -387,7 +387,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     # 
     # Ubntu
     # ------------------------------------------------------------
-    host1 = "host1"
+    host1 = "clos-host1"
     config.vm.define host1 do |host|
         host.vm.hostname = host1
         host.vm.box = 'bento/ubuntu-20.04'
@@ -427,7 +427,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    host2 = "host2"
+    host2 = "clos-host2"
     config.vm.define host2 do |host|
         host.vm.hostname = host2
         host.vm.box = 'bento/ubuntu-20.04'

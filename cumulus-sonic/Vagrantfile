@@ -300,38 +300,38 @@ sudo cat <<'EOF' | sudo tee /etc/sonic/config_db.json
       "Loopback0|10.1.0.1/32": {}
   },
   "INTERFACE": {
-      "Ethernet0|10.0.0.0/31": {},
-      "Ethernet4|10.0.0.2/31": {},
-      "Ethernet8|10.0.0.4/31": {},
-      "Ethernet12|10.0.0.6/31": {},
-      "Ethernet16|10.0.0.8/31": {},
-      "Ethernet20|10.0.0.10/31": {},
-      "Ethernet24|10.0.0.12/31": {},
-      "Ethernet28|10.0.0.14/31": {},
-      "Ethernet32|10.0.0.16/31": {},
-      "Ethernet36|10.0.0.18/31": {},
-      "Ethernet40|10.0.0.20/31": {},
-      "Ethernet44|10.0.0.22/31": {},
-      "Ethernet48|10.0.0.24/31": {},
-      "Ethernet52|10.0.0.26/31": {},
-      "Ethernet56|10.0.0.28/31": {},
-      "Ethernet60|10.0.0.30/31": {},
-      "Ethernet64|10.0.0.32/31": {},
-      "Ethernet68|10.0.0.34/31": {},
-      "Ethernet72|10.0.0.36/31": {},
-      "Ethernet76|10.0.0.38/31": {},
-      "Ethernet80|10.0.0.40/31": {},
-      "Ethernet84|10.0.0.42/31": {},
-      "Ethernet88|10.0.0.44/31": {},
-      "Ethernet92|10.0.0.46/31": {},
-      "Ethernet96|10.0.0.48/31": {},
-      "Ethernet100|10.0.0.50/31": {},
-      "Ethernet104|10.0.0.52/31": {},
-      "Ethernet108|10.0.0.54/31": {},
-      "Ethernet112|10.0.0.56/31": {},
-      "Ethernet116|10.0.0.58/31": {},
-      "Ethernet120|10.0.0.60/31": {},
-      "Ethernet124|10.0.0.62/31": {}
+    "Ethernet0": {},
+    "Ethernet4": {},
+    "Ethernet8": {},
+    "Ethernet12": {},
+    "Ethernet16": {},
+    "Ethernet20": {},
+    "Ethernet24": {},
+    "Ethernet28": {},
+    "Ethernet32": {},
+    "Ethernet36": {},
+    "Ethernet40": {},
+    "Ethernet44": {},
+    "Ethernet48": {},
+    "Ethernet52": {},
+    "Ethernet56": {},
+    "Ethernet60": {},
+    "Ethernet64": {},
+    "Ethernet68": {},
+    "Ethernet72": {},
+    "Ethernet76": {},
+    "Ethernet80": {},
+    "Ethernet84": {},
+    "Ethernet88": {},
+    "Ethernet92": {},
+    "Ethernet96": {},
+    "Ethernet100": {},
+    "Ethernet104": {},
+    "Ethernet108": {},
+    "Ethernet112": {},
+    "Ethernet116": {},
+    "Ethernet120": {},
+    "Ethernet124": {}
   }
 }
 EOF
@@ -387,142 +387,121 @@ EOF
 systemctl restart frr
 SCRIPT
 
-$cumulus1_conf = <<-'CONFIG'
+$spine1_conf = <<-'CONFIG'
 enable
 configure terminal
 interface lo
-  ip address 10.10.0.1/32
-interface swp1
-  ip address 10.0.1.1/24
-  ipv6 nd ra-interval 10
-  no ipv6 nd suppress-ra
-  no shut
-interface swp2
-  ip address 10.0.2.1/24
-  ipv6 nd ra-interval 10
-  no ipv6 nd suppress-ra
-  no shut
-
-router bgp 65200
-  bgp router-id 10.10.0.1
-  no bgp ebgp-requires-policy
-  bgp bestpath as-path multipath-relax
-  neighbor FABRIC peer-group
-  neighbor FABRIC remote-as external
-  neighbor FABRIC capability extended-nexthop
-  neighbor swp1 interface peer-group FABRIC
-  neighbor swp2 interface peer-group FABRIC
-  address-family ipv4 unicast
-    network 10.10.0.1/32
-  exit-address-family
-CONFIG
-
-$cumulus2_conf = <<-'CONFIG'
-enable
-configure terminal
-interface lo
-  ip address 10.10.0.2/32
-interface swp1
-  ip address 10.0.3.1/24
-  ipv6 nd ra-interval 10
-  no ipv6 nd suppress-ra
-  no shut
-interface swp2
-  ip address 10.0.4.1/24
-  ipv6 nd ra-interval 10
-  no ipv6 nd suppress-ra
-  no shut
-
-router bgp 65200
-  bgp router-id 10.10.0.2
-  no bgp ebgp-requires-policy
-  bgp bestpath as-path multipath-relax
-  neighbor FABRIC peer-group
-  neighbor FABRIC remote-as external
-  neighbor FABRIC capability extended-nexthop
-  neighbor swp1 interface peer-group FABRIC
-  neighbor swp2 interface peer-group FABRIC
-  address-family ipv4 unicast
-    network 10.10.0.2/32
-  exit-address-family
-CONFIG
-
-$sonic1_conf = <<-'CONFIG'
-enable
-configure terminal
-interface lo
-  ip address 10.10.1.1/32
+  ip address 10.0.0.1/32
 interface Ethernet0
-  ip address 10.0.1.2/24
+  ip address 10.1.0.1/24
   ipv6 nd ra-interval 10
   no ipv6 nd suppress-ra
   no shut
 interface Ethernet4
-  ip address 10.0.3.2/24
+  ip address 10.2.0.1/24
   ipv6 nd ra-interval 10
   no ipv6 nd suppress-ra
   no shut
-interface Ethernet8
+
+router bgp 65200
+  bgp router-id 10.0.0.1
+  no bgp ebgp-requires-policy
+  bgp bestpath as-path multipath-relax
+  neighbor FABRIC peer-group
+  neighbor FABRIC remote-as external
+  neighbor FABRIC capability extended-nexthop
+  neighbor Ethernet0 interface peer-group FABRIC
+  neighbor Ethernet4 interface peer-group FABRIC
+  address-family ipv4 unicast
+    network 10.0.0.1/32
+  exit-address-family
+end
+write mem
+CONFIG
+
+$leaf1_conf = <<-'CONFIG'
+enable
+configure terminal
+interface lo
+  ip address 10.0.1.1/32
+interface swp1
+  ip address 10.1.0.2/24
+  ipv6 nd ra-interval 10
+  no ipv6 nd suppress-ra
+  no shut
+interface swp2
   ip address 192.168.1.1/24
   no shut
 
 router bgp 65100
-  bgp router-id 10.10.1.1
+  bgp router-id 10.0.1.1
   no bgp ebgp-requires-policy
   bgp bestpath as-path multipath-relax
   neighbor FABRIC peer-group
   neighbor FABRIC remote-as external
   neighbor FABRIC capability extended-nexthop
-  neighbor Ethernet0 interface peer-group FABRIC
-  neighbor Ethernet4 interface peer-group FABRIC
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
   address-family ipv4 unicast
-    network 10.10.1.1/32
-    network 10.0.1.0/24
-    network 10.0.3.0/24
-    network 192.168.1.0/24
+    network 10.0.1.1/32
+    network 192.168.1.1/24
   exit-address-family
+
+end
+write mem
 CONFIG
 
-$sonic2_conf = <<-'CONFIG'
+$leaf2_conf = <<-'CONFIG'
 enable
 configure terminal
 interface lo
-  ip address 10.10.1.2/32
-interface Ethernet0
-  ip address 10.0.2.2/24
+  ip address 10.0.1.2/32
+interface swp1
+  ip address 10.2.0.2/24
   ipv6 nd ra-interval 10
   no ipv6 nd suppress-ra
   no shut
-interface Ethernet4
-  ip address 10.0.4.2/24
-  ipv6 nd ra-interval 10
-  no ipv6 nd suppress-ra
-  no shut
-interface Ethernet8
+interface swp2
   ip address 192.168.2.1/24
   no shut
 
 router bgp 65101
-  bgp router-id 10.10.1.2
+  bgp router-id 10.0.1.2
   no bgp ebgp-requires-policy
   bgp bestpath as-path multipath-relax
   neighbor FABRIC peer-group
   neighbor FABRIC remote-as external
   neighbor FABRIC capability extended-nexthop
-  neighbor Ethernet0 interface peer-group FABRIC
-  neighbor Ethernet4 interface peer-group FABRIC
+  neighbor swp1 interface peer-group FABRIC
+  neighbor swp2 interface peer-group FABRIC
   address-family ipv4 unicast
-    network 10.10.1.2/32
-    network 10.0.2.0/24
-    network 10.0.4.0/24
-    network 192.168.2.0/24
+    network 10.0.1.2/32
+    network 192.168.2.1/24
   exit-address-family
+
+end
+write mem
 CONFIG
 
 
 def to_vtysh_cmd(s)
-  "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
+    "vtysh" + s.split("\n").map{|s| " -c \"" + s + "\""}.join()
 end
+
+# ------------------------------------------------------------
+# Host Config
+# ------------------------------------------------------------
+$host1_conf = <<-'SCRIPT'
+ip link set eth1 up
+ip address add 192.168.1.2/24 dev eth1
+ip route add 192.168.2.0/24 via 192.168.1.1 dev eth1
+SCRIPT
+
+$host2_conf = <<-'SCRIPT'
+ip link set eth1 up
+ip address add 192.168.2.2/24 dev eth1
+ip route add 192.168.1.0/24 via 192.168.2.1 dev eth1
+SCRIPT
 
 
 # ------------------------------------------------------------
@@ -534,29 +513,76 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vbguest.auto_update = false
 
     # 
-    # Cumulus Linux
+    # SONiC
     # ------------------------------------------------------------
-    cumulus1 = "cumulus1"
-    config.vm.define cumulus1 do |switch|
-        switch.vm.hostname = cumulus1
-        switch.vm.box = "CumulusCommunity/cumulus-vx"
+    spine1 = "clos-spine1"
+    config.vm.define spine1 do |switch|
+        switch.vm.box = "sonic-vs"
 
-        # ssh config
-        switch.ssh.username = 'vagrant'
-        switch.ssh.password = 'vagrant'
+        switch.ssh.username = 'admin'
+        switch.ssh.password = 'YourPaSsWoRd'
         switch.ssh.insert_key = false
+
+        switch.vm.boot_timeout = 18000
+        switch.vm.synced_folder '.', '/vagrant', disabled: true
 
         # private network config
         switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
         switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
 
-        # set network config
-        switch.vm.provision "shell", inline: $daemons
-        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus1_conf)
+        # # set network config
+        switch.vm.provision "shell", inline: $reset_sonic % {hostname: spine1}
+        switch.vm.provision "shell", inline: to_vtysh_cmd($spine1_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = cumulus1
+            vb.name = spine1
+            vb.gui = $gui
+            vb.cpus = 1
+            vb.memory = 2048
+            vb.customize [
+                "modifyvm", :id,
+                "--vram", "16", 
+                "--clipboard", "bidirectional",
+                "--draganddrop", "bidirectional",
+                "--ioapic", "off",
+                "--graphicscontroller", "vmsvga",
+                "--accelerate3d", "off",
+                "--hwvirtex", "on",
+                "--nestedpaging", "on",
+                "--largepages", "on",
+                "--pae", "on",
+                "--audio", "none",
+                "--chipset", "piix3",
+                "--uartmode1", "disconnected",
+                "--description", $description
+            ]
+
+            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+                vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
+            end
+        end
+      end
+
+    # 
+    # Cumulus Linux
+    # ------------------------------------------------------------
+    leaf1 = "clos-leaf1"
+    config.vm.define leaf1 do |switch|
+        switch.vm.hostname = leaf1
+        switch.vm.box = "CumulusCommunity/cumulus-vx"
+
+        # private network config
+        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+
+        # set network config
+        switch.vm.provision "shell", inline: $daemons
+        switch.vm.provision "shell", inline: to_vtysh_cmd($leaf1_conf)
+
+        # virtual box config
+        switch.vm.provider "virtualbox" do |vb|
+            vb.name = leaf1
             vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
@@ -583,27 +609,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         end
     end
 
-    cumulus2 = "cumulus2"
-    config.vm.define cumulus2 do |switch|
-        switch.vm.hostname = cumulus2
+    leaf2 = "clos-leaf2"
+    config.vm.define leaf2 do |switch|
+        switch.vm.hostname = leaf2
         switch.vm.box = "CumulusCommunity/cumulus-vx"
 
-        # ssh config
-        switch.ssh.username = 'vagrant'
-        switch.ssh.password = 'vagrant'
-        switch.ssh.insert_key = false
-
         # private network config
-        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
         switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
 
         # set network config
         switch.vm.provision "shell", inline: $daemons
-        switch.vm.provision "shell", inline: to_vtysh_cmd($cumulus2_conf)
+        switch.vm.provision "shell", inline: to_vtysh_cmd($leaf2_conf)
 
         # virtual box config
         switch.vm.provider "virtualbox" do |vb|
-            vb.name = cumulus2
+            vb.name = leaf2
             vb.gui = $gui
             vb.cpus = 1
             vb.memory = 1024
@@ -631,43 +652,30 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
 
     # 
-    # SONiC
+    # Ubntu
     # ------------------------------------------------------------
-    sonic1 = "sonic1"
-    config.vm.define sonic1 do |switch|
-        # switch.vm.hostname = sonic1  ## error!
-        switch.vm.box = "sonic-vs"
-
-        switch.ssh.username = 'admin'
-        switch.ssh.password = 'YourPaSsWoRd'
-        switch.ssh.insert_key = false
-
-        switch.vm.boot_timeout = 18000
-
-        switch.vm.provision "shell", inline: "hostname " + sonic1
-
-        switch.vm.synced_folder '.', '/vagrant', disabled: true
+    host1 = "clos-host1"
+    config.vm.define host1 do |host|
+        host.vm.hostname = host1
+        host.vm.box = 'bento/ubuntu-20.04'
 
         # private network config
-        switch.vm.network "private_network", virtualbox__intnet: "net1", auto_config: false
-        switch.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
+        host.vm.network "private_network", virtualbox__intnet: "net3", auto_config: false
 
-        # # set network config
-        switch.vm.provision "shell", inline: $reset_sonic % {hostname: sonic1}
-        switch.vm.provision "shell", inline: to_vtysh_cmd($sonic1_conf)
+        host.vm.provision "shell", inline: $host1_conf
 
         # virtual box config
-        switch.vm.provider "virtualbox" do |vb|
-            vb.name = sonic1
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = host1
             vb.gui = $gui
-            vb.cpus = 2
-            vb.memory = 2048
+            vb.cpus = 1
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -675,52 +683,39 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--uartmode1", "disconnected",
                 "--description", $description
             ]
 
-            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
                 vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
     end
 
-    sonic2 = "sonic2"
-    config.vm.define sonic2 do |switch|
-        # switch.vm.hostname = sonic2  ## error!
-        switch.vm.box = "sonic-vs"
-
-        switch.ssh.username = 'admin'
-        switch.ssh.password = 'YourPaSsWoRd'
-        switch.ssh.insert_key = false
-
-        switch.vm.boot_timeout = 18000
-
-        switch.vm.provision "shell", inline: "hostname " + sonic2
-
-        switch.vm.synced_folder '.', '/vagrant', disabled: true
+    host2 = "clos-host2"
+    config.vm.define host2 do |host|
+        host.vm.hostname = host2
+        host.vm.box = 'bento/ubuntu-20.04'
 
         # private network config
-        switch.vm.network "private_network", virtualbox__intnet: "net2", auto_config: false
-        switch.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
+        host.vm.network "private_network", virtualbox__intnet: "net4", auto_config: false
 
-        # # set network config
-        switch.vm.provision "shell", inline:  $reset_sonic % {hostname: sonic2}
-        switch.vm.provision "shell", inline: to_vtysh_cmd($sonic2_conf)
+        host.vm.provision "shell", inline: $host2_conf
 
         # virtual box config
-        switch.vm.provider "virtualbox" do |vb|
-            vb.name = sonic2
+        host.vm.provider "virtualbox" do |vb|
+            vb.name = host2
             vb.gui = $gui
-            vb.cpus = 2
-            vb.memory = 2048
+            vb.cpus = 1
+            vb.memory = 1024
             vb.customize [
                 "modifyvm", :id,
                 "--vram", "16", 
                 "--clipboard", "bidirectional",
                 "--draganddrop", "bidirectional",
-                "--ioapic", "off",
+                "--ioapic", "on",
                 "--graphicscontroller", "vmsvga",
                 "--accelerate3d", "off",
                 "--hwvirtex", "on",
@@ -728,12 +723,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
                 "--largepages", "on",
                 "--pae", "on",
                 "--audio", "none",
-                "--chipset", "piix3",
+                "--chipset", "ich9",
                 "--uartmode1", "disconnected",
                 "--description", $description
             ]
 
-            (1..switch.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
+            (1..host.vm.networks.count {|nw| !nw.include? :forwarded_port}).each do |i|
                 vb.customize ["modifyvm", :id, "--nicpromisc#{i+1}", "allow-all"]
             end
         end
